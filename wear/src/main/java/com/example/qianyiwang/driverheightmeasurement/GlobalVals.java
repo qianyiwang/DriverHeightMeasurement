@@ -6,4 +6,8 @@ package com.example.qianyiwang.driverheightmeasurement;
 
 public class GlobalVals {
     public static float abs_v;
+    public static float z_v;
+    public static float time_target = 3f;
+    public static float distance;
+    public static String msg = "";
 }

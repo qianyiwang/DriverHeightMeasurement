@@ -3,23 +3,26 @@ package com.example.qianyiwang.driverheightmeasurement;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.wearable.view.WatchViewStub;
+import android.view.WindowManager;
 import android.widget.TextView;
 
 public class MainAPP extends Activity {
 
+    TextView abs_v;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main_app);
-        startService(new Intent(getBaseContext(), MotionService.class));
+
+        abs_v = (TextView)findViewById(R.id.text);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-
+        startService(new Intent(getBaseContext(), MotionService.class));
     }
 
     @Override

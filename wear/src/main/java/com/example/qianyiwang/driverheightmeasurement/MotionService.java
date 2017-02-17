@@ -6,26 +6,36 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.os.AsyncTask;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.util.Log;
 import android.widget.Toast;
 
-import java.util.LinkedList;
-import java.util.Queue;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.MessageApi;
+import com.google.android.gms.wearable.MessageEvent;
+import com.google.android.gms.wearable.Wearable;
+
+import java.util.Calendar;
 
 /**
  * Created by wangqianyi on 2016-11-21.
  */
-public class MotionService extends Service implements SensorEventListener {
+public class MotionService extends Service implements SensorEventListener, MessageApi.MessageListener {
 
     //Sensor variable
+    private final String TAG = "MotionService";
     Sensor senAccelerometer, senGravity;
     SensorManager mSensorManager;
     float[] gravity, linear_acceleration, velocity;
     private float timestamp;
     private static final float NS2S = 1.0f / 1000000000.0f;
+    private float dT, time;
+    private float calibrate;
+    int i = 0;
+
+    public static String MESSAGE_PATH = "/from-phone";
+    GoogleApiClient apiClient;
     @Override
     public void onCreate() {
         super.onCreate();
@@ -48,6 +58,12 @@ public class MotionService extends Service implements SensorEventListener {
         velocity[0] = 0;
         velocity[1] = 0;
         velocity[2] = 0;
+
+        apiClient = new GoogleApiClient.Builder(this)
+                .addApi(Wearable.API)
+                .build();
+        apiClient.connect();
+        Wearable.MessageApi.addListener(apiClient, this);//very important
     }
 
     @Override
@@ -59,7 +75,6 @@ public class MotionService extends Service implements SensorEventListener {
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-
         if(event.sensor.getType() == Sensor.TYPE_GRAVITY){
             gravity[0] = event.values[0];
             gravity[1] = event.values[1];
@@ -71,7 +86,6 @@ public class MotionService extends Service implements SensorEventListener {
         if(event.sensor.getType() == Sensor.TYPE_ACCELEROMETER){
             if(timestamp!=0){
                 final float alpha = 0.8f;
-                final float dT = (event.timestamp - timestamp) * NS2S;
                 // Isolate the force of gravity with the low-pass filter.
                 gravity[0] = alpha * gravity[0] + (1 - alpha) * event.values[0];
                 gravity[1] = alpha * gravity[1] + (1 - alpha) * event.values[1];
@@ -81,19 +95,48 @@ public class MotionService extends Service implements SensorEventListener {
                 linear_acceleration[0] = event.values[0] - gravity[0];
                 linear_acceleration[1] = event.values[1] - gravity[1];
                 linear_acceleration[2] = event.values[2] - gravity[2];
+//                float abs_acceleration = (float) Math.sqrt(Math.pow(linear_acceleration[0], 2) + Math.pow(linear_acceleration[1], 2) + Math.pow(linear_acceleration[2], 2));
+//                Log.e(TAG,abs_acceleration+","+linear_acceleration[0]+","+linear_acceleration[1]+","+linear_acceleration[2]);
             }
         }
-        GlobalVals.abs_v = calculateVelocity(event.timestamp-timestamp);
-        Log.e("abs_v",GlobalVals.abs_v+"");
+        dT = (event.timestamp - timestamp) * NS2S;
+        if(GlobalVals.msg!=""){
+            if(i!=0){
+                if(i==1){
+                    calibrate = calculateVelocity(dT);
+                }
+                else{
+                    time = time+dT;
+                    if(time<=GlobalVals.time_target){
+                        GlobalVals.z_v = Math.abs(calculateVelocity(dT)-calibrate);
+                        GlobalVals.distance = calculateDistance(dT);
+                        Log.e(TAG,GlobalVals.distance+","+GlobalVals.z_v+","+linear_acceleration[2]);
+                    }
+                    else{
+                        i = 0;
+                        GlobalVals.msg = "";
+                        time = 0;
+
+
+                    }
+                }
+            }
+            i++;
+        }
         timestamp = event.timestamp;
 
     }
 
     private float calculateVelocity(float t){
-        float v_x = velocity[0]+linear_acceleration[0]*t;
-        float v_y = velocity[1]+linear_acceleration[1]*t;
-        float v_z = velocity[2]+linear_acceleration[2]*t;
-        return (float) Math.sqrt(Math.pow(v_x, 2) + Math.pow(v_y, 2) + Math.pow(v_z, 2));
+        velocity[0] = velocity[0]+linear_acceleration[0]*t;
+        velocity[1] = velocity[1]+linear_acceleration[1]*t;
+        velocity[2] = velocity[2]+linear_acceleration[2]*t;
+//        return (float) Math.sqrt(Math.pow(velocity[0], 2) + Math.pow(velocity[1], 2) + Math.pow(velocity[2], 2));
+        return velocity[2];
+    }
+
+    private float calculateDistance(float t){
+        return GlobalVals.distance+GlobalVals.z_v*t;
     }
 
     @Override
@@ -114,4 +157,11 @@ public class MotionService extends Service implements SensorEventListener {
         return null;
     }
 
+    @Override
+    public void onMessageReceived(MessageEvent messageEvent) {
+        if (messageEvent.getPath().equalsIgnoreCase(MESSAGE_PATH)){
+            GlobalVals.msg = new String(messageEvent.getData());
+            Log.e(TAG, GlobalVals.msg);
+        }
+    }
 }
