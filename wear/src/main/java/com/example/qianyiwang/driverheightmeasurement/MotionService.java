@@ -51,6 +51,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
         acceleration = new float[3];
         velocity = new float[3];
         mRotationMatrix = new float[9];
+        acc_last = new float[3];
         acceleration[0] = 0;
         acceleration[1] = 0;
         acceleration[2] = 0;
@@ -97,12 +98,12 @@ public class MotionService extends Service implements SensorEventListener, Messa
                 acceleration[2] = (acceleration[2] - SensorManager.GRAVITY_EARTH) / SensorManager.GRAVITY_EARTH;
 
                 // using ramp as filter
-                acc_last[0] = acceleration[0] * alpha + acc_last[0] * (1.0f - alpha);
-                acc_last[1] = acceleration[1] * alpha + acc_last[1] * (1.0f - alpha);
-                acc_last[2] = acceleration[2] * alpha + acc_last[2] * (1.0f - alpha);
-                acceleration[0] = acceleration[0] - acc_last[0];
-                acceleration[1] = acceleration[1] - acc_last[1];
-                acceleration[2] = acceleration[2] - acc_last[2];
+//                acc_last[0] = acceleration[0] * alpha + acc_last[0] * (1.0f - alpha);
+//                acc_last[1] = acceleration[1] * alpha + acc_last[1] * (1.0f - alpha);
+//                acc_last[2] = acceleration[2] * alpha + acc_last[2] * (1.0f - alpha);
+//                acceleration[0] = acceleration[0] - acc_last[0];
+//                acceleration[1] = acceleration[1] - acc_last[1];
+//                acceleration[2] = acceleration[2] - acc_last[2];
             }
         }
         dT = (event.timestamp - timestamp) * NS2S;
