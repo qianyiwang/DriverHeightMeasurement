@@ -27,9 +27,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
     private final String TAG = "MotionService";
     Sensor senAccelerometer, senGravity, senMagnetic;
     SensorManager mSensorManager;
-    float[] gravity, linear_acceleration, velocity, mRotationMatrix;
-    private float zAccCurrent; // current acceleration including gravity
-    private float zAccLast; // last acceleration including gravity
+    float[] acceleration, velocity, mRotationMatrix, acc_last;
     private float timestamp;
     private static final float NS2S = 1.0f / 1000000000.0f;
     private float dT, time;
@@ -50,19 +48,12 @@ public class MotionService extends Service implements SensorEventListener, Messa
 //        mSensorManager.registerListener(this, senGravity , SensorManager.SENSOR_DELAY_FASTEST);//adjust the frequency
         mSensorManager.registerListener(this, senMagnetic , SensorManager.SENSOR_DELAY_FASTEST);
 
-        gravity = new float[3];
-        linear_acceleration = new float[3];
+        acceleration = new float[3];
         velocity = new float[3];
         mRotationMatrix = new float[9];
-        gravity[0] = 0;
-        gravity[1] = 0;
-        gravity[2] = 0;
-        linear_acceleration[0] = 0;
-        linear_acceleration[1] = 0;
-        linear_acceleration[2] = 0;
-        velocity[0] = 0;
-        velocity[1] = 0;
-        velocity[2] = 0;
+        acceleration[0] = 0;
+        acceleration[1] = 0;
+        acceleration[2] = 0;
 
         apiClient = new GoogleApiClient.Builder(this)
                 .addApi(Wearable.API)
@@ -96,50 +87,39 @@ public class MotionService extends Service implements SensorEventListener, Messa
         // dT is the event delivery rate.
         else if(event.sensor.getType() == Sensor.TYPE_ACCELEROMETER){
             if(timestamp!=0){
-                final float alpha = 0.8f;
+                final float alpha = 0.1f;
 
-                linear_acceleration[0] = event.values[0] * mRotationMatrix[0] + event.values[1] * mRotationMatrix[1] + event.values[2] * mRotationMatrix[2];
-                linear_acceleration[1] = event.values[0] * mRotationMatrix[3] + event.values[1] * mRotationMatrix[4] + event.values[2] * mRotationMatrix[5];
-                linear_acceleration[2] = event.values[0] * mRotationMatrix[6] + event.values[1] * mRotationMatrix[7] + event.values[2] * mRotationMatrix[8];
-                linear_acceleration[0] /= SensorManager.GRAVITY_EARTH;
-                linear_acceleration[1] /= SensorManager.GRAVITY_EARTH;
-                linear_acceleration[2] = (linear_acceleration[2] - SensorManager.GRAVITY_EARTH) / SensorManager.GRAVITY_EARTH;
-//                // Isolate the force of gravity with the low-pass filter.
-//                gravity[0] = alpha * gravity[0] + (1 - alpha) * event.values[0];
-//                gravity[1] = alpha * gravity[1] + (1 - alpha) * event.values[1];
-//                gravity[2] = alpha * gravity[2] + (1 - alpha) * event.values[2];
-//
-//                // Remove the gravity contribution with the high-pass filter.
-//                linear_acceleration[0] = event.values[0] - gravity[0];
-//                linear_acceleration[1] = event.values[1] - gravity[1];
-//                linear_acceleration[2] = event.values[2] - gravity[2];
-//                zAccLast = zAccCurrent;
-//                zAccCurrent = linear_acceleration[2];//(float) Math.sqrt(acc_x * acc_x + acc_y * acc_y + acc_z * acc_z);
-//                float delta = zAccCurrent - zAccLast;
-//                linear_acceleration[2] = delta*linear_acceleration[2] + (1-delta)*linear_acceleration[2]; // perform low-cut filter
+                acceleration[0] = event.values[0] * mRotationMatrix[0] + event.values[1] * mRotationMatrix[1] + event.values[2] * mRotationMatrix[2];
+                acceleration[1] = event.values[0] * mRotationMatrix[3] + event.values[1] * mRotationMatrix[4] + event.values[2] * mRotationMatrix[5];
+                acceleration[2] = event.values[0] * mRotationMatrix[6] + event.values[1] * mRotationMatrix[7] + event.values[2] * mRotationMatrix[8];
+                acceleration[0] /= SensorManager.GRAVITY_EARTH;
+                acceleration[1] /= SensorManager.GRAVITY_EARTH;
+                acceleration[2] = (acceleration[2] - SensorManager.GRAVITY_EARTH) / SensorManager.GRAVITY_EARTH;
 
+                // using ramp as filter
+                acc_last[0] = acceleration[0] * alpha + acc_last[0] * (1.0f - alpha);
+                acc_last[1] = acceleration[1] * alpha + acc_last[1] * (1.0f - alpha);
+                acc_last[2] = acceleration[2] * alpha + acc_last[2] * (1.0f - alpha);
+                acceleration[0] = acceleration[0] - acc_last[0];
+                acceleration[1] = acceleration[1] - acc_last[1];
+                acceleration[2] = acceleration[2] - acc_last[2];
             }
         }
         dT = (event.timestamp - timestamp) * NS2S;
         if(GlobalVals.msg!=""){
             if(i>=60){
 //                if(i==61){
-//                    calibrate = linear_acceleration[2];
+//                    calibrate = acceleration[2];
 //                }
 
                 time = time+dT;
                 if(time<=GlobalVals.time_target){
                     GlobalVals.z_v = calculateVelocity(dT);
                     GlobalVals.distance = calculateDistance(dT);
-                    Log.e(TAG,GlobalVals.distance+","+GlobalVals.z_v+","+linear_acceleration[2]);
+                    Log.e(TAG,GlobalVals.distance+","+GlobalVals.z_v+","+acceleration[2]);
                 }
                 else{
-                    i = 0;
-                    GlobalVals.msg = "";
-                    time = 0;
-                    GlobalVals.distance = 0;
-                    GlobalVals.z_v = 0;
-                    GlobalVals.vibrator.vibrate(50);
+                    initialVals();
                 }
 
             }
@@ -149,19 +129,28 @@ public class MotionService extends Service implements SensorEventListener, Messa
 
     }
 
+    private void initialVals(){
+        i = 0;
+        GlobalVals.msg = "";
+        time = 0;
+        GlobalVals.distance = 0;
+        GlobalVals.z_v = 0;
+        GlobalVals.vibrator.vibrate(50);
+        velocity[0] = 0;
+        velocity[1] = 0;
+        velocity[2] = 0;
+        acc_last[0] = 0;
+        acc_last[1] = 0;
+        acc_last[2] = 0;
+    }
+
     private float calculateVelocity(float t){
-//        velocity[0] = velocity[0]+linear_acceleration[0]*t;
-//        velocity[1] = velocity[1]+linear_acceleration[1]*t;
-//        if(linear_acceleration[2]>=-0.5&&linear_acceleration[2]<=0.5){
-//            linear_acceleration[2] = 0;
-//        }
-        velocity[2] = velocity[2]+(linear_acceleration[2])*t;
-//        return (float) Math.sqrt(Math.pow(velocity[0], 2) + Math.pow(velocity[1], 2) + Math.pow(velocity[2], 2));
+        velocity[2] = velocity[2]+(acceleration[2])*t;
         return velocity[2];
     }
 
     private float calculateDistance(float t){
-        return GlobalVals.distance+GlobalVals.z_v*t;
+        return GlobalVals.distance+velocity[2]*t;
     }
 
     @Override
