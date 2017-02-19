@@ -28,7 +28,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
     Sensor senAccelerometer, senGravity, senMagnetic;
     SensorManager mSensorManager;
     float[] acceleration, velocity, mRotationMatrix, acc_last;
-    private float timestamp;
+    private float timestamp, last_accZ;
     private static final float NS2S = 1.0f / 1000000000.0f;
     private float dT, time;
     private float calibrate;
@@ -88,7 +88,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
         // dT is the event delivery rate.
         else if(event.sensor.getType() == Sensor.TYPE_ACCELEROMETER){
             if(timestamp!=0){
-                final float alpha = 0.1f;
+                final float alpha = 0.25f;
 
                 acceleration[0] = event.values[0] * mRotationMatrix[0] + event.values[1] * mRotationMatrix[1] + event.values[2] * mRotationMatrix[2];
                 acceleration[1] = event.values[0] * mRotationMatrix[3] + event.values[1] * mRotationMatrix[4] + event.values[2] * mRotationMatrix[5];
@@ -104,6 +104,11 @@ public class MotionService extends Service implements SensorEventListener, Messa
 //                acceleration[0] = acceleration[0] - acc_last[0];
 //                acceleration[1] = acceleration[1] - acc_last[1];
 //                acceleration[2] = acceleration[2] - acc_last[2];
+
+                // using low pass filter: y[i] := y[i-1] + α * (x[i] - y[i-1])
+                acceleration[2] = last_accZ + alpha * (acceleration[2] - last_accZ);
+                last_accZ = acceleration[2];
+
             }
         }
         dT = (event.timestamp - timestamp) * NS2S;

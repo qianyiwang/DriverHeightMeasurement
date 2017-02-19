@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-fileName = 'data1'
+fileName = 'data3'
 distance = []
 z_v = []
 z_acc = []
