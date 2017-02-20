@@ -17,6 +17,8 @@ import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Wearable;
 
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.LinkedList;
 
 /**
  * Created by wangqianyi on 2016-11-21.
@@ -33,6 +35,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
     private float dT, time;
     private float calibrate;
     int i = 0;
+    LinkedList<Float> distArr;
 
     public static String MESSAGE_PATH = "/from-phone";
     GoogleApiClient apiClient;
@@ -49,6 +52,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
         velocity = new float[3];
         mRotationMatrix = new float[9];
         acc_last = new float[3];
+        distArr = new LinkedList<>();
 
         apiClient = new GoogleApiClient.Builder(this)
                 .addApi(Wearable.API)
@@ -66,11 +70,6 @@ public class MotionService extends Service implements SensorEventListener, Messa
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-//        if(event.sensor.getType() == Sensor.TYPE_GRAVITY){
-//            gravity[0] = event.values[0];
-//            gravity[1] = event.values[1];
-//            gravity[2] = event.values[2];
-//        }
 
 
         // In this example, alpha is calculated as t / (t + dT),
@@ -83,6 +82,10 @@ public class MotionService extends Service implements SensorEventListener, Messa
                 float acc_x = acc_last[0] + alpha * (event.values[0] - acc_last[0]);
                 float acc_y = acc_last[1] + alpha * (event.values[1] - acc_last[1]);
                 float acc_z = acc_last[2] + alpha * (event.values[2] - acc_last[2]);
+
+                acc_last[0] = acc_x;
+                acc_last[1] = acc_y;
+                acc_last[2] = acc_z;
 
                 abs_acc = (float) Math.sqrt(acc_x*acc_x+acc_y*acc_y+acc_z*acc_z);
 
@@ -99,9 +102,12 @@ public class MotionService extends Service implements SensorEventListener, Messa
                 if(time<=GlobalVals.time_target){
                     GlobalVals.z_v = calculateVelocity(dT);
                     GlobalVals.distance = calculateDistance(dT);
+                    distArr.add(GlobalVals.distance);
                     Log.e(TAG,GlobalVals.distance+","+GlobalVals.z_v+","+abs_acc);
                 }
                 else{
+                    float max = postAnalysis();
+                    Log.e(TAG, "max:"+max);
                     initialVals();
                 }
 
@@ -110,6 +116,11 @@ public class MotionService extends Service implements SensorEventListener, Messa
         }
         timestamp = event.timestamp;
 
+    }
+
+    private float postAnalysis(){
+        Float max = Collections.max(distArr);
+        return max;
     }
 
     private void initialVals(){
@@ -125,6 +136,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
         acc_last[0] = 0;
         acc_last[1] = 0;
         acc_last[2] = 0;
+        distArr.clear();
     }
 
     private float calculateVelocity(float t){
