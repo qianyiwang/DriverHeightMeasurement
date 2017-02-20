@@ -17,6 +17,8 @@ import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Wearable;
 
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.LinkedList;
 
 /**
  * Created by wangqianyi on 2016-11-21.
@@ -31,7 +33,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
     private float timestamp, last_accZ;
     private static final float NS2S = 1.0f / 1000000000.0f;
     private float dT, time;
-    private float calibrate;
+    LinkedList<Float> distArr;
     int i = 0;
 
     public static String MESSAGE_PATH = "/from-phone";
@@ -44,7 +46,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
         senAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 //        senGravity = mSensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
         senMagnetic = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
-        mSensorManager.registerListener(this, senAccelerometer , SensorManager.SENSOR_DELAY_NORMAL);//adjust the frequency
+        mSensorManager.registerListener(this, senAccelerometer , SensorManager.SENSOR_DELAY_FASTEST);//adjust the frequency
 //        mSensorManager.registerListener(this, senGravity , SensorManager.SENSOR_DELAY_FASTEST);//adjust the frequency
         mSensorManager.registerListener(this, senMagnetic , SensorManager.SENSOR_DELAY_FASTEST);
 
@@ -55,6 +57,8 @@ public class MotionService extends Service implements SensorEventListener, Messa
         acceleration[0] = 0;
         acceleration[1] = 0;
         acceleration[2] = 0;
+
+        distArr = new LinkedList<>();
 
         apiClient = new GoogleApiClient.Builder(this)
                 .addApi(Wearable.API)
@@ -93,10 +97,11 @@ public class MotionService extends Service implements SensorEventListener, Messa
                 acceleration[0] = event.values[0] * mRotationMatrix[0] + event.values[1] * mRotationMatrix[1] + event.values[2] * mRotationMatrix[2];
                 acceleration[1] = event.values[0] * mRotationMatrix[3] + event.values[1] * mRotationMatrix[4] + event.values[2] * mRotationMatrix[5];
                 acceleration[2] = event.values[0] * mRotationMatrix[6] + event.values[1] * mRotationMatrix[7] + event.values[2] * mRotationMatrix[8];
-                acceleration[0] /= SensorManager.GRAVITY_EARTH;
-                acceleration[1] /= SensorManager.GRAVITY_EARTH;
-                acceleration[2] = (acceleration[2] - SensorManager.GRAVITY_EARTH) / SensorManager.GRAVITY_EARTH;
-
+                acceleration[2] = acceleration[2] - SensorManager.GRAVITY_EARTH;
+//                acceleration[0] /= SensorManager.GRAVITY_EARTH;
+//                acceleration[1] /= SensorManager.GRAVITY_EARTH;
+//                acceleration[2] = (acceleration[2] - SensorManager.GRAVITY_EARTH) / SensorManager.GRAVITY_EARTH;
+//                Log.e(TAG, acceleration[0] + ","+ acceleration[1] + "," + acceleration[2]);
                 // using ramp as filter
 //                acc_last[0] = acceleration[0] * alpha + acc_last[0] * (1.0f - alpha);
 //                acc_last[1] = acceleration[1] * alpha + acc_last[1] * (1.0f - alpha);
@@ -105,7 +110,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
 //                acceleration[1] = acceleration[1] - acc_last[1];
 //                acceleration[2] = acceleration[2] - acc_last[2];
 
-                // using low pass filter: y[i] := y[i-1] + α * (x[i] - y[i-1])
+//                 using low pass filter: y[i] := y[i-1] + α * (x[i] - y[i-1])
                 acceleration[2] = last_accZ + alpha * (acceleration[2] - last_accZ);
                 last_accZ = acceleration[2];
 
@@ -122,9 +127,12 @@ public class MotionService extends Service implements SensorEventListener, Messa
                 if(time<=GlobalVals.time_target){
                     GlobalVals.z_v = calculateVelocity(dT);
                     GlobalVals.distance = calculateDistance(dT);
+                    distArr.add(GlobalVals.distance);
                     Log.e(TAG,GlobalVals.distance+","+GlobalVals.z_v+","+acceleration[2]);
                 }
                 else{
+                    float dist = postAnaly();
+                    Log.e(TAG, "distance:"+dist);
                     initialVals();
                 }
 
@@ -133,6 +141,11 @@ public class MotionService extends Service implements SensorEventListener, Messa
         }
         timestamp = event.timestamp;
 
+    }
+
+    private float postAnaly(){
+        Float max = Collections.max(distArr);
+        return max;
     }
 
     private void initialVals(){
@@ -148,6 +161,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
         acc_last[0] = 0;
         acc_last[1] = 0;
         acc_last[2] = 0;
+        distArr.clear();
     }
 
     private float calculateVelocity(float t){
