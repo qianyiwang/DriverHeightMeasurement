@@ -44,16 +44,16 @@ public class MotionService extends Service {
     private class MySensorEvent implements SensorEventListener{
 
         SensorManager sensorManager;
-        Sensor acc_linearSensor, rotationSensor;
+        Sensor accSensor, rotationSensor;
         private float[] rotationMatrix = new float[9];
         private float[] mLastAccelerometer = new float[3];
         private float[] mLastMagnetometer = new float[3];
 
         MySensorEvent(){
             sensorManager = ((SensorManager) getSystemService(SENSOR_SERVICE));
-            acc_linearSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
             rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
-            sensorManager.registerListener(this, acc_linearSensor , SensorManager.SENSOR_DELAY_NORMAL);
+            sensorManager.registerListener(this, accSensor , SensorManager.SENSOR_DELAY_NORMAL);
             sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_NORMAL);
         }
 
@@ -61,12 +61,11 @@ public class MotionService extends Service {
         public void onSensorChanged(SensorEvent sensorEvent) {
 
             if(sensorEvent.sensor == rotationSensor){
-                SensorManager.getRotationMatrixFromVector();
-                Log.e(TAG, "accZ: "+ sensorEvent.values[2]+"rotation: "+rotationMatrix[6] + " " + rotationMatrix[7] + " " + rotationMatrix[8]);
+                SensorManager.getRotationMatrixFromVector(rotationMatrix, sensorEvent.values);
+                Log.e(TAG, "rotation: "+rotationMatrix[6] + " " + rotationMatrix[7] + " " + rotationMatrix[8]);
             }
 
-            else if(sensorEvent.sensor==acc_linearSensor){
-
+            if(sensorEvent.sensor==accSensor){
 
             }
         }
