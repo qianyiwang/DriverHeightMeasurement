@@ -48,8 +48,6 @@ public class MainAPP extends AppCompatActivity implements View.OnClickListener, 
 
         startBt = (Button)findViewById(R.id.button);
         startBt.setOnClickListener(this);
-
-        startService(new Intent(getBaseContext(), MotionService.class));
     }
 
     @Override

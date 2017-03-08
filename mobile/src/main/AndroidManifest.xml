@@ -16,10 +16,6 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".MotionService"
-            android:enabled="true"
-            android:exported="true" />
     </application>
 
 </manifest>
