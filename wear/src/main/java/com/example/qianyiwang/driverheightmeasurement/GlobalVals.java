@@ -7,10 +7,6 @@ import android.os.Vibrator;
  */
 
 public class GlobalVals {
-    public static float abs_v;
-    public static float z_v;
-    public static float time_target = 2.5f;
-    public static float distance;
-    public static String msg = "";
+
     public static Vibrator vibrator;
 }
