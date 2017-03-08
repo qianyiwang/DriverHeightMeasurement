@@ -54,7 +54,7 @@ public class MotionService extends Service {
             accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
             rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
             sensorManager.registerListener(this, accSensor , SensorManager.SENSOR_DELAY_NORMAL);
-            sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_FASTEST);
+            sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_NORMAL);
         }
 
         @Override
@@ -68,11 +68,10 @@ public class MotionService extends Service {
             else if(sensorEvent.sensor==accSensor){
 
 //                using low pass filter: y[i] := y[i-1] + α * (x[i] - y[i-1])
-//                for (int i=0; i<2; i++){
-//                    sensorEvent.values[i] = last_acc[i] + alpha * (sensorEvent.values[i] - last_acc[i]);
-//                    last_acc[i] = sensorEvent.values[i];
-//                }
-
+                for (int i=0; i<2; i++){
+                    sensorEvent.values[i] = last_acc[i] + alpha * (sensorEvent.values[i] - last_acc[i]);
+                    last_acc[i] = sensorEvent.values[i];
+                }
                 float[] acc_global = calculateGlobalOrientationValue(sensorEvent.values);
                 Log.e(TAG, "acc_global: "+acc_global[0] + " " + acc_global[1] + " " + acc_global[2]);
             }
