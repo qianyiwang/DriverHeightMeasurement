@@ -54,7 +54,7 @@ public class MotionService extends Service {
             accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
             rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
             sensorManager.registerListener(this, accSensor , SensorManager.SENSOR_DELAY_NORMAL);
-            sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_NORMAL);
+            sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_FASTEST);
         }
 
         @Override
@@ -65,21 +65,25 @@ public class MotionService extends Service {
                 Log.e(TAG, "rotation: "+rotationMatrix[6] + " " + rotationMatrix[7] + " " + rotationMatrix[8]);
             }
 
-            if(sensorEvent.sensor==accSensor){
+            else if(sensorEvent.sensor==accSensor){
 
 //                using low pass filter: y[i] := y[i-1] + α * (x[i] - y[i-1])
-                for (int i=0; i<2; i++){
-                    sensorEvent.values[i] = last_acc[i] + alpha * (sensorEvent.values[i] - last_acc[i]);
-                    last_acc[i] = sensorEvent.values[i];
-                }
+//                for (int i=0; i<2; i++){
+//                    sensorEvent.values[i] = last_acc[i] + alpha * (sensorEvent.values[i] - last_acc[i]);
+//                    last_acc[i] = sensorEvent.values[i];
+//                }
 
-                calculateGlobalOrientationValue(sensorEvent.values);
+                float[] acc_global = calculateGlobalOrientationValue(sensorEvent.values);
+                Log.e(TAG, "acc_global: "+acc_global[0] + " " + acc_global[1] + " " + acc_global[2]);
             }
         }
 
         private float[] calculateGlobalOrientationValue(float[] data){
-
-            return null;
+            float[] result = new float[3];
+            result[0] = data[0] * rotationMatrix[0] + data[1] * rotationMatrix[1] + data[2] * rotationMatrix[2];
+            result[1] = data[0] * rotationMatrix[3] + data[1] * rotationMatrix[4] + data[2] * rotationMatrix[5];
+            result[2] = data[0] * rotationMatrix[6] + data[1] * rotationMatrix[7] + data[2] * rotationMatrix[8];
+            return result;
         }
 
         @Override
