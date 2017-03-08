@@ -1,5 +1,6 @@
 package com.example.qianyiwang.driverheightmeasurement;
 
+import android.content.Intent;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
@@ -47,6 +48,14 @@ public class MainAPP extends AppCompatActivity implements View.OnClickListener, 
 
         startBt = (Button)findViewById(R.id.button);
         startBt.setOnClickListener(this);
+
+        startService(new Intent(getBaseContext(), MotionService.class));
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        stopService(new Intent(getBaseContext(), MotionService.class));
     }
 
     @Override

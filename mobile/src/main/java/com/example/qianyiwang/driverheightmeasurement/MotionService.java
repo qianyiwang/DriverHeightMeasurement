@@ -16,7 +16,6 @@ import com.google.android.gms.wearable.MessageApi;
 import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Wearable;
 
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.LinkedList;
 
@@ -47,10 +46,10 @@ public class MotionService extends Service implements SensorEventListener, Messa
         super.onCreate();
 
         mSensorManager = ((SensorManager) getSystemService(SENSOR_SERVICE));
-//        senAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        senAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
 //        senGravity = mSensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
         senMagnetic = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
-//        mSensorManager.registerListener(this, senAccelerometer , SensorManager.SENSOR_DELAY_GAME);//adjust the frequency
+        mSensorManager.registerListener(this, senAccelerometer , SensorManager.SENSOR_DELAY_GAME);//adjust the frequency
 //        mSensorManager.registerListener(this, senGravity , SensorManager.SENSOR_DELAY_FASTEST);//adjust the frequency
         mSensorManager.registerListener(this, senMagnetic , SensorManager.SENSOR_DELAY_GAME);
         acceleration = new float[3];
@@ -89,7 +88,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
 //            gravity[2] = event.values[2];
 //        }
 
-        if(event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR){
+        if(event.sensor == senMagnetic){
             SensorManager.getRotationMatrixFromVector(mRotationMatrix, event.values);
             Log.e("rotation", mRotationMatrix[6]+","+mRotationMatrix[7]+","+mRotationMatrix[8]);
         }
@@ -97,14 +96,35 @@ public class MotionService extends Service implements SensorEventListener, Messa
         // In this example, alpha is calculated as t / (t + dT),
         // where t is the low-pass filter's time-constant and
         // dT is the event delivery rate.
-        else if(event.sensor.getType() == Sensor.TYPE_ACCELEROMETER){
+        else if(event.sensor.getType() == Sensor.TYPE_LINEAR_ACCELERATION){
             if(timestamp!=0){
+                for (int i=0; i<3; i++) {
+                    mSensorDelta[i] = event.values[i]-mSensorBias[i];
+                    if (mSensorDelta[i] > 0) {
+                        if (mSensorDelta[i] > SENSOR_BIAS_STEP[i]) {
+                            mSensorBias[i] += SENSOR_BIAS_STEP[i];
+                        } else {
+                            mSensorBias[i] += event.values[i];
+                        }
+                    }
+                    else {
+                        if (mSensorDelta[i] < -SENSOR_BIAS_STEP[i]) {
+                            mSensorBias[i] -= SENSOR_BIAS_STEP[i];
+                        } else {
+                            mSensorBias[i] -= event.values[i];
+                        }
+                    }
+                    mSensorDelta[i] = event.values[i]-mSensorBias[i];
+
+                    if ((mSensorDelta[i] < SENSOR_ZERO_RANGE[i]) && (mSensorDelta[i] > -SENSOR_ZERO_RANGE[i])) {
+                        mSensorDelta[i] = 0;
+                    }
+                }
 
 //                final float alpha = 0.25f;
-                acceleration[0] = event.values[0] * mRotationMatrix[0] + event.values[1] * mRotationMatrix[1] + event.values[2] * mRotationMatrix[2];
-                acceleration[1] = event.values[0] * mRotationMatrix[3] + event.values[1] * mRotationMatrix[4] + event.values[2] * mRotationMatrix[5];
-                acceleration[2] = event.values[0] * mRotationMatrix[6] + event.values[1] * mRotationMatrix[7] + event.values[2] * mRotationMatrix[8];
-                Log.e(TAG, acceleration[2]+"");
+                acceleration[0] = mSensorDelta[0] * mRotationMatrix[0] + mSensorDelta[1] * mRotationMatrix[1] + mSensorDelta[2] * mRotationMatrix[2];
+                acceleration[1] = mSensorDelta[0] * mRotationMatrix[3] + mSensorDelta[1] * mRotationMatrix[4] + mSensorDelta[2] * mRotationMatrix[5];
+                acceleration[2] = mSensorDelta[0] * mRotationMatrix[6] + mSensorDelta[1] * mRotationMatrix[7] + mSensorDelta[2] * mRotationMatrix[8];
 //                if(acceleration[2]>0){
 //                    acceleration[2] = acceleration[2] - SensorManager.GRAVITY_EARTH;
 //                }
@@ -112,30 +132,7 @@ public class MotionService extends Service implements SensorEventListener, Messa
 //                    acceleration[2] = acceleration[2] + SensorManager.GRAVITY_EARTH;
 //                }
 
-                for (int i=0; i<3; i++) {
-                    mSensorDelta[i] = acceleration[i]-mSensorBias[i];
-                    if (mSensorDelta[i] > 0) {
-                        if (mSensorDelta[i] > SENSOR_BIAS_STEP[i]) {
-                            mSensorBias[i] += SENSOR_BIAS_STEP[i];
-                        } else {
-                            mSensorBias[i] += acceleration[i];
-                        }
-                    }
-                    else {
-                        if (mSensorDelta[i] < -SENSOR_BIAS_STEP[i]) {
-                            mSensorBias[i] -= SENSOR_BIAS_STEP[i];
-                        } else {
-                            mSensorBias[i] -= acceleration[i];
-                        }
-                    }
-                    mSensorDelta[i] = acceleration[i]-mSensorBias[i];
-
-                    if ((mSensorDelta[i] < SENSOR_ZERO_RANGE[i]) && (mSensorDelta[i] > -SENSOR_ZERO_RANGE[i])) {
-                        mSensorDelta[i] = 0;
-                    }
-                }
-
-//                Log.e(TAG, acceleration[0]+","+acceleration[1]+","+acceleration[2]+","+mSensorDelta[0] + ","+ mSensorDelta[1] + "," + mSensorDelta[2]);
+                Log.e(TAG, event.values[2]+",   "+ acceleration[2]+ ",   " + mSensorDelta[2]);
 //                Log.e(TAG, mRotationMatrix[8]+"");
 
 
