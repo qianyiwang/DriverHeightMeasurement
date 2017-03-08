@@ -45,9 +45,9 @@ public class MotionService extends Service {
 
         SensorManager sensorManager;
         Sensor accSensor, rotationSensor;
+        private float[] last_acc = new float[3];
         private float[] rotationMatrix = new float[9];
-        private float[] mLastAccelerometer = new float[3];
-        private float[] mLastMagnetometer = new float[3];
+        private final float alpha = 0.25f;
 
         MySensorEvent(){
             sensorManager = ((SensorManager) getSystemService(SENSOR_SERVICE));
@@ -67,7 +67,19 @@ public class MotionService extends Service {
 
             if(sensorEvent.sensor==accSensor){
 
+//                using low pass filter: y[i] := y[i-1] + α * (x[i] - y[i-1])
+                for (int i=0; i<2; i++){
+                    sensorEvent.values[i] = last_acc[i] + alpha * (sensorEvent.values[i] - last_acc[i]);
+                    last_acc[i] = sensorEvent.values[i];
+                }
+
+                calculateGlobalOrientationValue(sensorEvent.values);
             }
+        }
+
+        private float[] calculateGlobalOrientationValue(float[] data){
+
+            return null;
         }
 
         @Override
