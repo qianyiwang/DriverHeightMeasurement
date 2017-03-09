@@ -44,70 +44,126 @@ public class MotionService extends Service {
     private class MySensorEvent implements SensorEventListener{
 
         SensorManager sensorManager;
-        Sensor accSensor, rotationSensor;
+        Sensor accSensor, gravitySensor;
         private float[] last_acc = new float[3];
         private float[] rotationMatrix = new float[9];
-        private final float alpha = 0.25f;
-        float[] speed = new float[3];
-        float[] pos = new float[3];
+        private float[] gravityVal;
+        private final float alpha = 0.8f;
+        float[] mSensorBias;
+        float[] mSensorDelta;
+        float[] mSpeedBias;
+        float[] mSpeedDelta;
+        final float[] SENSOR_BIAS_STEP;
+        final float[] SENSOR_ZERO_RANGE;
+        final float[] SPEED_BIAS_STEP;
+        final float[] SPEED_ZERO_RANGE;
+        float[] speed;
+        float[] pos;
+        boolean gravity_flag = false;
+        private static final float NS2S = 1.0f / 1000000000.0f;
 
         MySensorEvent(){
             sensorManager = ((SensorManager) getSystemService(SENSOR_SERVICE));
-            accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+            accSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
             sensorManager.registerListener(this, accSensor , SensorManager.SENSOR_DELAY_GAME);
+            sensorManager.registerListener(this, gravitySensor , SensorManager.SENSOR_DELAY_GAME);
+            mSensorBias = new float[]{0, 0, 0};
+            mSensorDelta = new float[]{0, 0, 0};
+            mSpeedDelta = new float[]{0,0,0};
+            mSpeedBias = new float[]{0,0,0};
+            SENSOR_BIAS_STEP = new float[]{0.01f,0.01f,0.01f};
+            SENSOR_ZERO_RANGE = new float[]{0.2f,0.2f,0.2f};
+            SPEED_BIAS_STEP = new float[] {.5f,.5f,.5f};
+            SPEED_ZERO_RANGE = new float[] {0.05f,0.05f,0.05f};
+            speed = new float[]{0, 0, 0};
+            pos = new float[]{0, 0, 0};
+            gravityVal = new float[]{0, 0, 0};
         }
 
         @Override
         public void onSensorChanged(SensorEvent sensorEvent) {
 
-            if(sensorEvent.sensor==accSensor){
-                float[] acc_global;
+            if(sensorEvent.sensor == gravitySensor){
+                gravityVal = sensorEvent.values;
+                gravity_flag = true;
+            }
 
-//                using low pass filter: y[i] := y[i-1] + α * (x[i] - y[i-1])
-                for (int i=0; i<2; i++){
-                    sensorEvent.values[i] = last_acc[i] + alpha * (sensorEvent.values[i] - last_acc[i]);
-                    last_acc[i] = sensorEvent.values[i];
+            else if(sensorEvent.sensor==accSensor && gravity_flag){
+                // Isolate the force of gravity with the low-pass filter.
+                gravityVal[0] = alpha * gravityVal[0] + (1 - alpha) * sensorEvent.values[0];
+                gravityVal[1] = alpha * gravityVal[1] + (1 - alpha) * sensorEvent.values[1];
+                gravityVal[2] = alpha * gravityVal[2] + (1 - alpha) * sensorEvent.values[2];
+                for (int i=0; i<3; i++) {
+                    mSensorDelta[i] = sensorEvent.values[i]-gravityVal[i]-mSensorBias[i];
+                    if (mSensorDelta[i] > 0) {
+                        if (mSensorDelta[i] > SENSOR_BIAS_STEP[i]) {
+                            mSensorBias[i] += SENSOR_BIAS_STEP[i];
+                        } else {
+                            mSensorBias[i] += (sensorEvent.values[i]-gravityVal[i]);
+                        }
+                    }
+                    else {
+                        if (mSensorDelta[i] < -SENSOR_BIAS_STEP[i]) {
+                            mSensorBias[i] -= SENSOR_BIAS_STEP[i];
+                        } else {
+                            mSensorBias[i] -= (sensorEvent.values[i]-gravityVal[i]);
+                        }
+                    }
+                    mSensorDelta[i] = (sensorEvent.values[i]-gravityVal[i])-mSensorBias[i];
+
+                    if ((mSensorDelta[i] < SENSOR_ZERO_RANGE[i]) && (mSensorDelta[i] > -SENSOR_ZERO_RANGE[i])) {
+                        mSensorDelta[i] = 0;
+                    }
                 }
-                acc_global = accCalibrationFilter(sensorEvent.values);
-                double acc_magnitude = Math.sqrt(acc_global[0]*acc_global[0]+acc_global[1]*acc_global[1]+acc_global[2]*acc_global[2]);
+
+                for (int i=0; i<3; i++) {
+                    speed[i] += mSensorDelta[i];
+
+                    mSpeedDelta[i] = speed[i]-mSpeedBias[i];
+                    if (mSpeedDelta[i] > 0) {
+                        if (mSpeedDelta[i] > SPEED_BIAS_STEP[i]) {
+                            mSpeedBias[i] += SPEED_BIAS_STEP[i];
+                        } else {
+//                            mSpeedBias[i] += speed[i];
+                        }
+                    }
+                    else {
+                        if (mSpeedDelta[i] < -SPEED_BIAS_STEP[i]) {
+                            mSpeedBias[i] -= SPEED_BIAS_STEP[i];
+                        } else {
+//                            mSpeedBias[i] -= speed[i];
+                        }
+                    }
+                    mSpeedDelta[i] = speed[i]-mSpeedBias[i];
+
+                    if ((mSpeedDelta[i] < SPEED_ZERO_RANGE[i]) && (mSpeedDelta[i] > -SPEED_ZERO_RANGE[i])) {
+                        mSpeedDelta[i] = 0;
+                    }
+
+                    pos[i] += mSpeedDelta[i];
+                }
+
+//                    double acc_magnitude = Math.sqrt(mSensorDelta[0]*mSensorDelta[0]+mSensorDelta[1]*mSensorDelta[1]+mSensorDelta[2]*mSensorDelta[2]);
+//                    calculateSpeed();
+//                    calculateDistance();
+//                Log.e(TAG, mSensorDelta[0]+","+mSensorDelta[1]+","+mSensorDelta[2]/*+","
+//                            +(sensorEvent.values[0]-gravityVal[0])+","+(sensorEvent.values[1]-gravityVal[1])+","+(sensorEvent.values[2]-gravityVal[2])*/);
+                Log.e(TAG, mSensorDelta[0]+",     "+mSensorDelta[1]+",     "+mSensorDelta[2]+",    "
+                            +mSpeedDelta[0]+",     "+mSpeedDelta[1]+",    "+mSpeedDelta[2]+",    "+mSpeedBias[0]+",   "+ mSpeedBias[1]+",   "+ mSpeedBias[2]);
             }
         }
 
-        private float[] accCalibrationFilter(float[] data){
-            float[] mSensorBias = {0,0,0};
-            float[] mSensorDelta = {0,0,0};
-            final float[] SENSOR_BIAS_STEP = {0.01f,0.01f,0.02f};
-            final float[] SENSOR_ZERO_RANGE = {0.2f,0.2f,0.4f};
-            for (int i=0; i<3; i++) {
-                mSensorDelta[i] = data[i]-mSensorBias[i];
-                if (mSensorDelta[i] > 0) {
-                    if (mSensorDelta[i] > SENSOR_BIAS_STEP[i]) {
-                        mSensorBias[i] += SENSOR_BIAS_STEP[i];
-                    } else {
-                        mSensorBias[i] += data[i];
-                    }
-                }
-                else {
-                    if (mSensorDelta[i] < -SENSOR_BIAS_STEP[i]) {
-                        mSensorBias[i] -= SENSOR_BIAS_STEP[i];
-                    } else {
-                        mSensorBias[i] -= data[i];
-                    }
-                }
-                mSensorDelta[i] = data[i]-mSensorBias[i];
-
-                if ((mSensorDelta[i] < SENSOR_ZERO_RANGE[i]) && (mSensorDelta[i] > -SENSOR_ZERO_RANGE[i])) {
-                    mSensorDelta[i] = 0;
-                }
-            }
-            return mSensorDelta;
-        }
-
-        private float[] calculateSpeed(float[] speed, float[] acc_global){
+        private void calculateSpeed(){
             for(int i=0; i<3; i++){
-                speed[i] += acc_global[i];
+                speed[i] += mSensorDelta[i];
             }
-            return speed;
+        }
+
+        private void calculateDistance(){
+            for(int i=0; i<3; i++){
+                pos[i] += speed[i];
+            }
         }
 
         private float[] calculateGlobalOrientationValue(float[] data){
